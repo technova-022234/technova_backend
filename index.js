@@ -1,74 +1,106 @@
-import dotenv from "dotenv"
-import express from "express"
-import cors from "cors"
-import mongoose from "mongoose";
-import connet from "./db.js" // Import database connection
-import Level1Score from "./models/level1schema.js" // Import the model
-import User from "./models/loginschema.js"
+import dotenv from "dotenv";
+import express from "express";
+import cors from "cors";
+import connectDB from "./db.js";
+import User from "./models/loginschema.js";
+
+dotenv.config();
+connectDB();
 
 const app = express();
 
-dotenv.config()
-const corsoptions={
-    origin:"*",
-    methods:"GET,POST"
-}
-
-// Middleware
 app.use(express.json());
-app.use(cors(corsoptions));
+app.use(
+    cors({
+        origin: "*",
+        methods: ["GET", "POST"],
+    })
+);
 
-// Connect to database
-connet();
-
-// Route to handle storing Level 1 scores
 app.post("/api/level1/submit", async (req, res) => {
     try {
-        const { email, score, submissionTime, questionScores } = req.body;
-
-        if (!email || !score || !submissionTime || !questionScores) {
+        const { email, score, submissionTime } = req.body;
+        if (!email || score === undefined || !submissionTime) {
             return res.status(400).json({ message: "Missing required fields" });
         }
 
-        const newScore = new Level1Score({
-            email,
-            score,
-            submissionTime,
-            questionScores,
-        });
+        const updatedUser = await User.findOneAndUpdate(
+            { email },
+            { $set: { level1: { score, submissionTime } } },
+            { new: true, runValidators: true }
+        );
 
-        await newScore.save();
-        res.status(201).json({ message: "Score submitted successfully!" });
+        if (!updatedUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        res.status(200).json({
+            message: "Score submitted successfully!",
+            data: updatedUser.level1,
+        });
     } catch (error) {
         console.error("Error submitting score:", error);
         res.status(500).json({ message: "Server error" });
     }
 });
 
-const verifyUser = async (req, res) => {
+app.post("/api/level2/submit", async (req, res) => {
     try {
-        const { email, password } = req.body;
-
-        // Check if user exists and password matches
-        const user = await User.findOne({ email, password });
-        if (!user) {
-            return res.status(400).json({ message: "Invalid email or password" });
+        const { email, moves, submissionTime } = req.body;
+        if (!email || moves === undefined || !submissionTime) {
+            return res.status(400).json({ message: "Missing required fields" });
         }
 
-        // If user exists and password matches, send success response
+        const updatedUser = await User.findOneAndUpdate(
+            { email },
+            { $set: { level2: { moves, submissionTime } } },
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
         res.status(200).json({
-            message: "Sign-in successful",
-            user: { email: user.email},
+            message: "moves submitted successfully!",
+            data: updatedUser.level2,
         });
     } catch (error) {
-        res.status(500).json({ message: "Error occurred", error: error.message });
+        console.error("Error submitting moves:", error);
+        res.status(500).json({ message: "Server error" });
     }
-};
+});
 
-// API Route for Login
-app.post("/api/users/login", verifyUser);
+app.post("/api/users/login", async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        if (!email || !password) {
+            return res
+                .status(400)
+                .json({ message: "Missing email or password" });
+        }
 
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res
+                .status(400)
+                .json({ message: "Invalid email or password" });
+        }
 
-app.listen(5000,()=> {
-    console.log("server is running on port 5000")
-})
+        res.status(200).json({
+            message: "Sign-in successful",
+            user: { email: user.email },
+        });
+    } catch (error) {
+        console.error("Error during login:", error);
+        res.status(500).json({
+            message: "Error occurred",
+            error: error.message,
+        });
+    }
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
