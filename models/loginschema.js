@@ -22,6 +22,10 @@ const UserSchema = new mongoose.Schema({
         type: String, 
         required: true 
     },
+    teamName: {
+        type: String,
+        required: true
+    },
     level1: { 
         type: Level1Schema, 
         default: null 
