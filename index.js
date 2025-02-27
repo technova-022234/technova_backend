@@ -17,6 +17,67 @@ app.use(
     })
 );
 
+app.post("/api/technova/register", async (req, res) => {
+    try {
+        const { emails, teamName } = req.body;
+        if (!emails || !Array.isArray(emails) || emails.length === 0) {
+            return res
+                .status(400)
+                .json({ message: "Missing or invalid emails array" });
+        }
+
+        const formattedTeamName = teamName.toLowerCase().replace(/\s+/g, "");
+        const password = `${formattedTeamName}@technova`;
+
+        const createdUsers = await Promise.all(
+            emails.map(async (email) => {
+                const user = await User.create({ email, password, teamName });
+                return { email: user.email };
+            })
+        );
+
+        res.status(201).json({
+            message: "Users registered successfully",
+            users: createdUsers,
+        });
+    } catch (error) {
+        console.error("Error during registration:", error);
+        res.status(500).json({
+            message: "Error occurred",
+            error: error.message,
+        });
+    }
+});
+
+app.post("/api/users/login", async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        if (!email || !password) {
+            return res
+                .status(400)
+                .json({ message: "Missing email or password" });
+        }
+
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res
+                .status(400)
+                .json({ message: "Invalid email or password" });
+        }
+
+        res.status(200).json({
+            message: "Sign-in successful",
+            user: { email: user.email },
+        });
+    } catch (error) {
+        console.error("Error during login:", error);
+        res.status(500).json({
+            message: "Error occurred",
+            error: error.message,
+        });
+    }
+});
+
 app.post("/api/level1/submit", async (req, res) => {
     try {
         const { email, score, submissionTime } = req.body;
