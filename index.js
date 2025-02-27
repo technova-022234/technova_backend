@@ -159,35 +159,6 @@ app.post("/api/level3/submit",async(req,res) =>{
     }
 })
 
-app.post("/api/users/login", async (req, res) => {
-    try {
-        const { email, password } = req.body;
-        if (!email || !password) {
-            return res
-                .status(400)
-                .json({ message: "Missing email or password" });
-        }
-
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res
-                .status(400)
-                .json({ message: "Invalid email or password" });
-        }
-
-        res.status(200).json({
-            message: "Sign-in successful",
-            user: { email: user.email },
-        });
-    } catch (error) {
-        console.error("Error during login:", error);
-        res.status(500).json({
-            message: "Error occurred",
-            error: error.message,
-        });
-    }
-});
-
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
