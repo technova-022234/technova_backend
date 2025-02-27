@@ -154,7 +154,7 @@ app.post("/api/level3/submit",async(req,res) =>{
             data: updatedUser.level1,
         });
     } catch (error) {
-        console.error("Error submitting answers:", error);
+        console.error("Error submitting answers:", error.message);
         res.status(500).json({ message: "Server error" });
     }
 })

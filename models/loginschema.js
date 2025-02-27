@@ -12,10 +12,7 @@ const Level2Schema = new mongoose.Schema({
 
 const Level3Schema =new mongoose.Schema({
     correctAnswers: {type: Number,required:true},
-    submissionTimes:[{
-        submissionTime:{type:Date,required:true}
-    }
-    ]
+    submissionTimes:{type: [Date], required: true},
 })
 
 const UserSchema = new mongoose.Schema({
