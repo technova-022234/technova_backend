@@ -10,6 +10,14 @@ const Level2Schema = new mongoose.Schema({
     submissionTime: { type: Date, required: true }
 }, { _id: false });
 
+const Level3Schema =new mongoose.Schema({
+    correctAnswers: {type: Number,required:true},
+    submissionTimes:[{
+        submissionTime:{type:Date,required:true}
+    }
+    ]
+})
+
 const UserSchema = new mongoose.Schema({
     email: { 
         type: String, 
@@ -28,6 +36,10 @@ const UserSchema = new mongoose.Schema({
     },
     level2: {
         type: Level2Schema,
+        default: null
+    },
+    level3: {
+        type:Level3Schema,
         default: null
     }
 }, { timestamps: true });

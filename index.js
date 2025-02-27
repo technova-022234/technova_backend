@@ -71,6 +71,33 @@ app.post("/api/level2/submit", async (req, res) => {
     }
 });
 
+app.post("/api/level3/submit",async(req,res) =>{
+    try {
+        const { email, correctAnswers, submissionTimes } = req.body;
+        if (!email || correctAnswers === undefined || !submissionTimes) {
+            return res.status(400).json({ message: "Missing required fields" });
+        }
+
+        const updatedUser = await User.findOneAndUpdate(
+            { email },
+            { $set: { level3: { correctAnswers, submissionTimes } } },
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        res.status(200).json({
+            message: "Answers submitted successfully!",
+            data: updatedUser.level1,
+        });
+    } catch (error) {
+        console.error("Error submitting answers:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+})
+
 app.post("/api/users/login", async (req, res) => {
     try {
         const { email, password } = req.body;
