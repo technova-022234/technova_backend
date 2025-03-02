@@ -160,6 +160,21 @@ app.post("/api/level3/submit",async(req,res) =>{
     }
 })
 
+app.get("/api/leaderboard/level1", async (req, res) => {
+    try {
+        const topPlayers = await User.find({ level1: { $ne: null } })
+            .sort({ "level1.score": -1, "level1.submissionTime": 1 }) 
+            .limit(10) 
+            .select("email teamName level1.score level1.submissionTime"); 
+
+        res.status(200).json({ leaderboard: topPlayers });
+    } catch (error) {
+        console.error("Error fetching leaderboard:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
