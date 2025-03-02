@@ -19,6 +19,7 @@ app.use(
 
 app.post("/api/technova/register", async (req, res) => {
     try {
+        console.log(req.body)
         const { emails, teamName } = req.body;
         if (!emails || !Array.isArray(emails) || emails.length === 0) {
             return res
