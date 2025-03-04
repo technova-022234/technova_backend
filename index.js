@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import connectDB from "./db.js";
 import User from "./models/loginschema.js";
+import mongoose from "mongoose";
 
 dotenv.config();
 connectDB();
@@ -197,7 +198,10 @@ app.get("/api/leaderboard/level1", async (req, res) => {
             if (b.level1.score !== a.level1.score) {
                 return b.level1.score - a.level1.score;
             }
-            return new Date(a.level1.submissionTime) - new Date(b.level1.submissionTime);
+            return (
+                new Date(a.level1.submissionTime) -
+                new Date(b.level1.submissionTime)
+            );
         });
 
         // Filter out duplicate teams by unique teamId.
@@ -210,7 +214,7 @@ app.get("/api/leaderboard/level1", async (req, res) => {
                     email: user.email,
                     teamName: user.teamName,
                     teamId: user.teamId,
-                    level1: user.level1
+                    level1: user.level1,
                 });
             }
         }
@@ -280,7 +284,9 @@ app.get("/api/leaderboard/level2", async (req, res) => {
                       (new Date(user.level2.submissionTime).getTime() -
                           minTime2) /
                           (maxTime2 - minTime2);
-            const level2Score = (normalizedMoves + normalizedTime2) / 2;
+
+            // Decrease the weight of time for level2: moves get 70% weight, time gets 30%
+            const level2Score = normalizedMoves * 0.7 + normalizedTime2 * 0.3;
 
             let level1Score = 0;
             if (user.level1) {
@@ -296,9 +302,12 @@ app.get("/api/leaderboard/level2", async (req, res) => {
                           (new Date(user.level1.submissionTime).getTime() -
                               minTime1) /
                               (maxTime1 - minTime1);
-                level1Score = (normalizedScore + normalizedTime1) / 2;
+
+                // Decrease the weight of time for level1: score gets 70% weight, time gets 30%
+                level1Score = normalizedScore * 0.7 + normalizedTime1 * 0.3;
             }
 
+            // The final score remains the average of the level1 and level2 scores
             const finalScore = (level1Score + level2Score) / 2;
 
             return {
