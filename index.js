@@ -93,6 +93,34 @@ app.post("/api/users/login", async (req, res) => {
                 .status(400)
                 .json({ message: "Invalid email or password" });
         }
+        const defaultTime = new Date("9999-03-08T03:12:23.377+00:00");
+
+        // Initialize level1 if not set
+        if (!user.level1) {
+            user.level1 = {
+                score: 0,
+                submissionTime: defaultTime,
+            };
+        }
+
+        // Initialize level2 if not set
+        if (!user.level2) {
+            user.level2 = {
+                moves: 0,
+                submissionTime: defaultTime,
+            };
+        }
+
+        // Initialize level3 if not set (adjust based on your needs)
+        if (!user.level3) {
+            user.level3 = {
+                correctAnswers: 0,
+                submissionTimes: [defaultTime],
+            };
+        }
+
+        // Save any updates made to the user document
+        await user.save();
 
         res.status(200).json({
             message: "Sign-in successful",
@@ -110,7 +138,7 @@ app.post("/api/users/login", async (req, res) => {
 app.post("/api/update-storage", async (req, res) => {
     try {
         const { email, ...storageData } = req.body;
-        console.log(storageData)
+        console.log(storageData);
         if (!email) {
             return res.status(400).json({ message: "Email is required" });
         }
@@ -220,6 +248,9 @@ app.get("/api/leaderboard/level1", async (req, res) => {
             return res.status(200).json({ leaderboard: [] });
         }
 
+        const defaultTimeISO = new Date(
+            "9999-03-08T03:12:23.377+00:00"
+        ).toISOString();
         // Sort users by descending score and ascending submission time.
         const sortedUsers = users.sort((a, b) => {
             if (b.level1.score !== a.level1.score) {
@@ -237,11 +268,23 @@ app.get("/api/leaderboard/level1", async (req, res) => {
         for (const user of sortedUsers) {
             if (!uniqueTeams.has(user.teamId)) {
                 uniqueTeams.add(user.teamId);
+
+                const submissionTimeISO = new Date(
+                    user.level1.submissionTime
+                ).toISOString();
+                const formattedSubmissionTime =
+                    submissionTimeISO === defaultTimeISO
+                        ? "Not Submitted"
+                        : user.level1.submissionTime;
+
                 leaderboard.push({
                     email: user.email,
                     teamName: user.teamName,
                     teamId: user.teamId,
-                    level1: user.level1,
+                    level1: {
+                        score: user.level1.score, // if level1 is a Mongoose subdoc; otherwise, simply use user.level1
+                        submissionTime: formattedSubmissionTime,
+                    },
                 });
             }
         }
@@ -261,6 +304,10 @@ app.get("/api/leaderboard/level2", async (req, res) => {
         if (!users || users.length === 0) {
             return res.status(200).json({ leaderboard: [] });
         }
+
+        const defaultTimeISO = new Date(
+            "9999-03-08T03:12:23.377+00:00"
+        ).toISOString();
 
         let minMoves = Infinity,
             maxMoves = -Infinity;
@@ -337,12 +384,26 @@ app.get("/api/leaderboard/level2", async (req, res) => {
             // The final score remains the average of the level1 and level2 scores
             const finalScore = (level1Score + level2Score) / 2;
 
+            const submissionTimeISO = new Date(
+                user.level2.submissionTime
+            ).toISOString();
+            const formattedSubmissionTime =
+                submissionTimeISO === defaultTimeISO
+                    ? "Not Submitted"
+                    : user.level2.submissionTime;
+
             return {
                 email: user.email,
                 teamName: user.teamName,
                 teamId: user.teamId,
-                level1: user.level1,
-                level2: user.level2,
+                level1: {
+                    score: user.level1.score,
+                    submissionTime: formattedSubmissionTime,
+                },
+                level2: {
+                    moves: user.level2.moves,
+                    submissionTime: formattedSubmissionTime,
+                },
                 finalScore,
             };
         });
