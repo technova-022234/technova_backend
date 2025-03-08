@@ -4,6 +4,7 @@ import cors from "cors";
 import connectDB from "./db.js";
 import User from "./models/loginschema.js";
 import mongoose from "mongoose";
+import Storage from "./models/Storage.js";
 
 dotenv.config();
 connectDB();
@@ -14,7 +15,7 @@ app.use(express.json());
 app.use(
     cors({
         origin: "*",
-        methods: ["GET", "POST"], 
+        methods: ["GET", "POST"],
     })
 );
 
@@ -78,6 +79,7 @@ app.post("/api/technova/register", async (req, res) => {
 app.post("/api/users/login", async (req, res) => {
     try {
         const { email, password } = req.body;
+        console.log(email, password);
         if (!email || !password) {
             return res
                 .status(400)
@@ -85,6 +87,7 @@ app.post("/api/users/login", async (req, res) => {
         }
 
         const user = await User.findOne({ email });
+        console.log(user);
         if (!user) {
             return res
                 .status(400)
@@ -101,6 +104,30 @@ app.post("/api/users/login", async (req, res) => {
             message: "Error occurred",
             error: error.message,
         });
+    }
+});
+
+app.post("/api/update-storage", async (req, res) => {
+    try {
+        const { email, ...storageData } = req.body;
+        console.log(storageData)
+        if (!email) {
+            return res.status(400).json({ message: "Email is required" });
+        }
+
+        const updatedStorage = await Storage.findOneAndUpdate(
+            { email },
+            { $set: storageData },
+            { new: true, upsert: true, runValidators: true }
+        );
+
+        res.status(200).json({
+            message: "Storage updated successfully",
+            data: updatedStorage,
+        });
+    } catch (error) {
+        console.error("Error updating storage:", error);
+        res.status(500).json({ message: "Server error" });
     }
 });
 
