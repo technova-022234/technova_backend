@@ -10,7 +10,6 @@ dotenv.config();
 connectDB();
 
 const app = express();
-
 app.use(express.json());
 app.use(
     cors({
@@ -19,6 +18,9 @@ app.use(
     })
 );
 
+// -------------------------
+// Registration Endpoint
+// -------------------------
 app.post("/api/technova/register", async (req, res) => {
     try {
         console.log(req.body);
@@ -76,6 +78,9 @@ app.post("/api/technova/register", async (req, res) => {
     }
 });
 
+// -------------------------
+// Login Endpoint
+// -------------------------
 app.post("/api/users/login", async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -86,7 +91,7 @@ app.post("/api/users/login", async (req, res) => {
                 .json({ message: "Missing email or password" });
         }
 
-        const user = await User.findOne({ email });
+        const user = await User.findOne({ email, password });
         console.log(user);
         if (!user) {
             return res
@@ -111,7 +116,7 @@ app.post("/api/users/login", async (req, res) => {
             };
         }
 
-        // Initialize level3 if not set (adjust based on your needs)
+        // Initialize level3 if not set
         if (!user.level3) {
             user.level3 = {
                 correctAnswers: 0,
@@ -124,7 +129,12 @@ app.post("/api/users/login", async (req, res) => {
 
         res.status(200).json({
             message: "Sign-in successful",
-            user: { email: user.email },
+            user: {
+                email: user.email,
+                teamName: user.teamName,
+                player1: user.teammates[0].name,
+                player2: user.teammates[1].name,
+            },
         });
     } catch (error) {
         console.error("Error during login:", error);
@@ -135,6 +145,9 @@ app.post("/api/users/login", async (req, res) => {
     }
 });
 
+// -------------------------
+// Storage Update Endpoint
+// -------------------------
 app.post("/api/update-storage", async (req, res) => {
     try {
         const { email, ...storageData } = req.body;
@@ -159,6 +172,9 @@ app.post("/api/update-storage", async (req, res) => {
     }
 });
 
+// -------------------------
+// Level1 Submission Endpoint
+// -------------------------
 app.post("/api/level1/submit", async (req, res) => {
     try {
         const { email, score, submissionTime } = req.body;
@@ -186,6 +202,9 @@ app.post("/api/level1/submit", async (req, res) => {
     }
 });
 
+// -------------------------
+// Level2 Submission Endpoint
+// -------------------------
 app.post("/api/level2/submit", async (req, res) => {
     try {
         const { email, moves, submissionTime } = req.body;
@@ -204,7 +223,7 @@ app.post("/api/level2/submit", async (req, res) => {
         }
 
         res.status(200).json({
-            message: "moves submitted successfully!",
+            message: "Moves submitted successfully!",
             data: updatedUser.level2,
         });
     } catch (error) {
@@ -213,6 +232,9 @@ app.post("/api/level2/submit", async (req, res) => {
     }
 });
 
+// -------------------------
+// Level3 Submission Endpoint
+// -------------------------
 app.post("/api/level3/submit", async (req, res) => {
     try {
         const { email, correctAnswers, submissionTimes } = req.body;
@@ -240,6 +262,9 @@ app.post("/api/level3/submit", async (req, res) => {
     }
 });
 
+// -------------------------
+// Level1 Leaderboard Endpoint
+// -------------------------
 app.get("/api/leaderboard/level1", async (req, res) => {
     try {
         // Retrieve all users who have level1 data.
@@ -282,33 +307,37 @@ app.get("/api/leaderboard/level1", async (req, res) => {
                     teamName: user.teamName,
                     teamId: user.teamId,
                     level1: {
-                        score: user.level1.score, // if level1 is a Mongoose subdoc; otherwise, simply use user.level1
+                        score: user.level1.score,
                         submissionTime: formattedSubmissionTime,
                     },
                 });
             }
         }
 
-        // Optionally limit to top 10 teams.
-        const top10 = leaderboard.slice(0, 10);
-        res.status(200).json({ leaderboard: top10 });
+        res.status(200).json({ leaderboard: leaderboard });
     } catch (error) {
         console.error("Error fetching level1 leaderboard:", error);
         res.status(500).json({ message: "Server error" });
     }
 });
 
+// -------------------------
+// Updated Level2 Leaderboard Endpoint
+// -------------------------
 app.get("/api/leaderboard/level2", async (req, res) => {
     try {
-        const users = await User.find({ level2: { $ne: null } });
+        // Fetch all users – we'll determine submission validity by comparing submissionTime to the default.
+        const users = await User.find();
         if (!users || users.length === 0) {
             return res.status(200).json({ leaderboard: [] });
         }
 
+        // Define the default submission timestamp.
         const defaultTimeISO = new Date(
             "9999-03-08T03:12:23.377+00:00"
         ).toISOString();
 
+        // Compute global statistics only for valid submissions.
         let minMoves = Infinity,
             maxMoves = -Infinity;
         let minTime2 = Infinity,
@@ -319,14 +348,25 @@ app.get("/api/leaderboard/level2", async (req, res) => {
             maxTime1 = -Infinity;
 
         users.forEach((user) => {
-            const moves = user.level2.moves;
-            const time2 = new Date(user.level2.submissionTime).getTime();
-            if (moves < minMoves) minMoves = moves;
-            if (moves > maxMoves) maxMoves = moves;
-            if (time2 < minTime2) minTime2 = time2;
-            if (time2 > maxTime2) maxTime2 = time2;
-
-            if (user.level1) {
+            // For level2, check if submissionTime is not default.
+            if (
+                user.level2 &&
+                new Date(user.level2.submissionTime).toISOString() !==
+                    defaultTimeISO
+            ) {
+                const moves = user.level2.moves;
+                const time2 = new Date(user.level2.submissionTime).getTime();
+                if (moves < minMoves) minMoves = moves;
+                if (moves > maxMoves) maxMoves = moves;
+                if (time2 < minTime2) minTime2 = time2;
+                if (time2 > maxTime2) maxTime2 = time2;
+            }
+            // For level1, check if submissionTime is not default.
+            if (
+                user.level1 &&
+                new Date(user.level1.submissionTime).toISOString() !==
+                    defaultTimeISO
+            ) {
                 const score = user.level1.score;
                 const time1 = new Date(user.level1.submissionTime).getTime();
                 if (score < minScore) minScore = score;
@@ -336,6 +376,7 @@ app.get("/api/leaderboard/level2", async (req, res) => {
             }
         });
 
+        // Fallback defaults if no valid submissions exist.
         if (minScore === Infinity) {
             minScore = 0;
             maxScore = 0;
@@ -344,26 +385,28 @@ app.get("/api/leaderboard/level2", async (req, res) => {
             minTime1 = Date.now();
             maxTime1 = Date.now();
         }
+        if (minMoves === Infinity) {
+            minMoves = 0;
+            maxMoves = 0;
+        }
+        if (minTime2 === Infinity) {
+            minTime2 = Date.now();
+            maxTime2 = Date.now();
+        }
 
-        const leaderboard = users.map((user) => {
-            let normalizedMoves =
-                maxMoves === minMoves
-                    ? 1
-                    : 1 -
-                      (user.level2.moves - minMoves) / (maxMoves - minMoves);
-            let normalizedTime2 =
-                maxTime2 === minTime2
-                    ? 1
-                    : 1 -
-                      (new Date(user.level2.submissionTime).getTime() -
-                          minTime2) /
-                          (maxTime2 - minTime2);
-
-            // Decrease the weight of time for level2: moves get 70% weight, time gets 30%
-            const level2Score = normalizedMoves * 0.7 + normalizedTime2 * 0.3;
+        // Map each user to compute their final score.
+        const leaderboardUsers = users.map((user) => {
+            const level1Submitted =
+                user.level1 &&
+                new Date(user.level1.submissionTime).toISOString() !==
+                    defaultTimeISO;
+            const level2Submitted =
+                user.level2 &&
+                new Date(user.level2.submissionTime).toISOString() !==
+                    defaultTimeISO;
 
             let level1Score = 0;
-            if (user.level1) {
+            if (level1Submitted) {
                 let normalizedScore =
                     maxScore === minScore
                         ? 1
@@ -376,54 +419,208 @@ app.get("/api/leaderboard/level2", async (req, res) => {
                           (new Date(user.level1.submissionTime).getTime() -
                               minTime1) /
                               (maxTime1 - minTime1);
-
-                // Decrease the weight of time for level1: score gets 70% weight, time gets 30%
                 level1Score = normalizedScore * 0.7 + normalizedTime1 * 0.3;
             }
 
-            // The final score remains the average of the level1 and level2 scores
-            const finalScore = (level1Score + level2Score) / 2;
+            let level2Score = 0;
+            if (level2Submitted) {
+                let normalizedMoves =
+                    maxMoves === minMoves
+                        ? 1
+                        : 1 -
+                          (user.level2.moves - minMoves) /
+                              (maxMoves - minMoves);
+                let normalizedTime2 =
+                    maxTime2 === minTime2
+                        ? 1
+                        : 1 -
+                          (new Date(user.level2.submissionTime).getTime() -
+                              minTime2) /
+                              (maxTime2 - minTime2);
+                level2Score = normalizedMoves * 0.7 + normalizedTime2 * 0.3;
+            }
 
-            const submissionTimeISO = new Date(
-                user.level2.submissionTime
-            ).toISOString();
-            const formattedSubmissionTime =
-                submissionTimeISO === defaultTimeISO
-                    ? "Not Submitted"
-                    : user.level2.submissionTime;
+            // Compute final score:
+            // If both levels are valid, average them.
+            // Otherwise, use the one that is valid (or 0 if neither is valid).
+            let finalScore = 0;
+            if (level1Submitted && level2Submitted) {
+                finalScore = (level1Score + level2Score) / 2;
+            } else if (level1Submitted) {
+                finalScore = level1Score;
+            } else if (level2Submitted) {
+                finalScore = level2Score;
+            }
+
+            const formattedLevel1Time = level1Submitted
+                ? user.level1.submissionTime
+                : "Not Submitted";
+            const formattedLevel2Time = level2Submitted
+                ? user.level2.submissionTime
+                : "Not Submitted";
 
             return {
                 email: user.email,
                 teamName: user.teamName,
                 teamId: user.teamId,
                 level1: {
-                    score: user.level1.score,
-                    submissionTime: formattedSubmissionTime,
+                    score: level1Submitted ? user.level1.score : 0,
+                    submissionTime: formattedLevel1Time,
                 },
                 level2: {
-                    moves: user.level2.moves,
-                    submissionTime: formattedSubmissionTime,
+                    moves: level2Submitted ? user.level2.moves : 0,
+                    submissionTime: formattedLevel2Time,
                 },
                 finalScore,
             };
         });
 
-        // Sort by final score in descending order
-        leaderboard.sort((a, b) => b.finalScore - a.finalScore);
-
-        // Filter to keep only one entry per unique team using teamId
-        const uniqueTeams = new Set();
-        const filteredLeaderboard = leaderboard.filter((user) => {
-            if (!uniqueTeams.has(user.teamId)) {
-                uniqueTeams.add(user.teamId);
-                return true;
+        // Group users by teamId.
+        const teamsMap = {};
+        leaderboardUsers.forEach((user) => {
+            if (!teamsMap[user.teamId]) {
+                teamsMap[user.teamId] = [];
             }
-            return false;
+            teamsMap[user.teamId].push(user);
         });
 
-        res.status(200).json({ leaderboard: filteredLeaderboard });
+        // For each team, select the best submission:
+        // If any team member has a valid submission (either level1 or level2), choose the one with the highest finalScore.
+        const finalLeaderboard = [];
+        Object.values(teamsMap).forEach((teamUsers) => {
+            const validUsers = teamUsers.filter(
+                (u) => u.level1.score !== null || u.level2.moves !== null
+            );
+            if (validUsers.length > 0) {
+                const selectedUser = validUsers.sort(
+                    (a, b) => b.finalScore - a.finalScore
+                )[0];
+                finalLeaderboard.push(selectedUser);
+            }
+        });
+
+        // Sort the final leaderboard by final score in descending order.
+        finalLeaderboard.sort((a, b) => b.finalScore - a.finalScore);
+
+        res.status(200).json({ leaderboard: finalLeaderboard });
     } catch (error) {
         console.error("Error fetching leaderboard:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+app.get("/api/leaderboard/level3", async (req, res) => {
+    try {
+        // Retrieve all users who have level3 data.
+        const users = await User.find({ level3: { $ne: null } });
+        if (!users || users.length === 0) {
+            return res.status(200).json({ leaderboard: [] });
+        }
+
+        // Default timestamp string for "Not Submitted" state.
+        const defaultTimeISO = new Date(
+            "9999-03-08T03:12:23.377+00:00"
+        ).toISOString();
+
+        // Helper: Check if a user has progress in level3
+        const hasProgress = (user) => {
+            if (
+                user.level3 &&
+                Array.isArray(user.level3.submissionTimes) &&
+                user.level3.submissionTimes.length > 0
+            ) {
+                const lastTime = new Date(
+                    user.level3.submissionTimes[
+                        user.level3.submissionTimes.length - 1
+                    ]
+                ).toISOString();
+                return lastTime !== defaultTimeISO;
+            }
+            return false;
+        };
+
+        // Sort users by descending correctAnswers and then ascending last submission time.
+        const sortedUsers = users.sort((a, b) => {
+            // Primary: Compare correctAnswers
+            if (b.level3.correctAnswers !== a.level3.correctAnswers) {
+                return b.level3.correctAnswers - a.level3.correctAnswers;
+            }
+            // Secondary: Compare last submission time (earlier is better)
+            const aLastTime = new Date(
+                a.level3.submissionTimes[a.level3.submissionTimes.length - 1]
+            );
+            const bLastTime = new Date(
+                b.level3.submissionTimes[b.level3.submissionTimes.length - 1]
+            );
+            return aLastTime - bLastTime;
+        });
+
+        // Group by teamId and pick the best user per team
+        const teamsMap = {};
+        sortedUsers.forEach((user) => {
+            if (!teamsMap[user.teamId]) {
+                teamsMap[user.teamId] = [];
+            }
+            teamsMap[user.teamId].push(user);
+        });
+
+        const finalLeaderboard = [];
+        Object.values(teamsMap).forEach((teamUsers) => {
+            // First, filter for team members with valid level3 progress.
+            const teamWithProgress = teamUsers.filter((u) => hasProgress(u));
+            let selectedUser;
+            if (teamWithProgress.length > 0) {
+                // Sort among those with progress (already sorted overall)
+                selectedUser = teamWithProgress[0];
+            } else {
+                // Fall back to the best overall (even if no progress)
+                selectedUser = teamUsers[0];
+            }
+            finalLeaderboard.push(selectedUser);
+        });
+
+        // Optionally, sort the final leaderboard by final ranking criteria.
+        // Here we sort by correctAnswers descending and then by last submission time ascending.
+        finalLeaderboard.sort((a, b) => {
+            if (b.level3.correctAnswers !== a.level3.correctAnswers) {
+                return b.level3.correctAnswers - a.level3.correctAnswers;
+            }
+            const aLastTime = new Date(
+                a.level3.submissionTimes[a.level3.submissionTimes.length - 1]
+            );
+            const bLastTime = new Date(
+                b.level3.submissionTimes[b.level3.submissionTimes.length - 1]
+            );
+            return aLastTime - bLastTime;
+        });
+
+        // Format the leaderboard for display.
+        const leaderboard = finalLeaderboard.map((user) => {
+            const lastSubmission =
+                user.level3.submissionTimes[
+                    user.level3.submissionTimes.length - 1
+                ];
+            const submissionTimeISO = new Date(lastSubmission).toISOString();
+            const formattedSubmissionTime =
+                submissionTimeISO === defaultTimeISO
+                    ? "Not Submitted"
+                    : lastSubmission;
+            return {
+                email: user.email,
+                teamName: user.teamName,
+                teamId: user.teamId,
+                level3: {
+                    correctAnswers: user.level3.correctAnswers,
+                    submissionTime: formattedSubmissionTime,
+                },
+            };
+        });
+
+        // Optionally limit to top 10 teams.
+        const top10 = leaderboard.slice(0, 10);
+        res.status(200).json({ leaderboard: top10 });
+    } catch (error) {
+        console.error("Error fetching level3 leaderboard:", error);
         res.status(500).json({ message: "Server error" });
     }
 });
