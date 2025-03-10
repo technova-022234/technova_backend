@@ -444,7 +444,8 @@ app.get("/api/leaderboard/level2", async (req, res) => {
             // Otherwise, penalize the score from the one submitted.
             let finalScore = 0;
             if (bothSubmitted) {
-                finalScore = (level1Score + level2Score) / 2;
+                // finalScore = (level1Score + level2Score) / 2;
+                finalScore = level1Score * 0.2 + level2Score * 0.8;
             } else if (level1Submitted) {
                 finalScore = level1Score * 0.5; // Penalize incomplete submission.
             } else if (level2Submitted) {
