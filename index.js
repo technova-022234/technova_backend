@@ -326,18 +326,18 @@ app.get("/api/leaderboard/level1", async (req, res) => {
 // -------------------------
 app.get("/api/leaderboard/level2", async (req, res) => {
     try {
-        // Fetch all users – we'll determine submission validity by comparing submissionTime to the default.
+        // Fetch all users
         const users = await User.find();
         if (!users || users.length === 0) {
             return res.status(200).json({ leaderboard: [] });
         }
 
-        // Define the default submission timestamp.
+        // Define default submission timestamp.
         const defaultTimeISO = new Date(
             "9999-03-08T03:12:23.377+00:00"
         ).toISOString();
 
-        // Compute global statistics only for valid submissions.
+        // Compute global statistics for valid submissions.
         let minMoves = Infinity,
             maxMoves = -Infinity;
         let minTime2 = Infinity,
@@ -348,7 +348,6 @@ app.get("/api/leaderboard/level2", async (req, res) => {
             maxTime1 = -Infinity;
 
         users.forEach((user) => {
-            // For level2, check if submissionTime is not default.
             if (
                 user.level2 &&
                 new Date(user.level2.submissionTime).toISOString() !==
@@ -361,7 +360,6 @@ app.get("/api/leaderboard/level2", async (req, res) => {
                 if (time2 < minTime2) minTime2 = time2;
                 if (time2 > maxTime2) maxTime2 = time2;
             }
-            // For level1, check if submissionTime is not default.
             if (
                 user.level1 &&
                 new Date(user.level1.submissionTime).toISOString() !==
@@ -394,7 +392,7 @@ app.get("/api/leaderboard/level2", async (req, res) => {
             maxTime2 = Date.now();
         }
 
-        // Map each user to compute their final score.
+        // Map each user and calculate normalized scores.
         const leaderboardUsers = users.map((user) => {
             const level1Submitted =
                 user.level1 &&
@@ -404,15 +402,16 @@ app.get("/api/leaderboard/level2", async (req, res) => {
                 user.level2 &&
                 new Date(user.level2.submissionTime).toISOString() !==
                     defaultTimeISO;
+            const bothSubmitted = level1Submitted && level2Submitted;
 
             let level1Score = 0;
             if (level1Submitted) {
-                let normalizedScore =
+                const normalizedScore =
                     maxScore === minScore
                         ? 1
                         : (user.level1.score - minScore) /
                           (maxScore - minScore);
-                let normalizedTime1 =
+                const normalizedTime1 =
                     maxTime1 === minTime1
                         ? 1
                         : 1 -
@@ -424,13 +423,13 @@ app.get("/api/leaderboard/level2", async (req, res) => {
 
             let level2Score = 0;
             if (level2Submitted) {
-                let normalizedMoves =
+                const normalizedMoves =
                     maxMoves === minMoves
                         ? 1
                         : 1 -
                           (user.level2.moves - minMoves) /
                               (maxMoves - minMoves);
-                let normalizedTime2 =
+                const normalizedTime2 =
                     maxTime2 === minTime2
                         ? 1
                         : 1 -
@@ -440,16 +439,16 @@ app.get("/api/leaderboard/level2", async (req, res) => {
                 level2Score = normalizedMoves * 0.7 + normalizedTime2 * 0.3;
             }
 
-            // Compute final score:
-            // If both levels are valid, average them.
-            // Otherwise, use the one that is valid (or 0 if neither is valid).
+            // Compute final score.
+            // If both levels are submitted, use the average.
+            // Otherwise, penalize the score from the one submitted.
             let finalScore = 0;
-            if (level1Submitted && level2Submitted) {
+            if (bothSubmitted) {
                 finalScore = (level1Score + level2Score) / 2;
             } else if (level1Submitted) {
-                finalScore = level1Score;
+                finalScore = level1Score * 0.5; // Penalize incomplete submission.
             } else if (level2Submitted) {
-                finalScore = level2Score;
+                finalScore = level2Score * 0.5; // Penalize incomplete submission.
             }
 
             const formattedLevel1Time = level1Submitted
@@ -472,6 +471,7 @@ app.get("/api/leaderboard/level2", async (req, res) => {
                     submissionTime: formattedLevel2Time,
                 },
                 finalScore,
+                bothSubmitted,
             };
         });
 
@@ -484,14 +484,16 @@ app.get("/api/leaderboard/level2", async (req, res) => {
             teamsMap[user.teamId].push(user);
         });
 
-        // For each team, select the best submission:
-        // If any team member has a valid submission (either level1 or level2), choose the one with the highest finalScore.
+        // For each team, select the best submission (teams must have at least one valid submission).
         const finalLeaderboard = [];
         Object.values(teamsMap).forEach((teamUsers) => {
             const validUsers = teamUsers.filter(
-                (u) => u.level1.score !== null || u.level2.moves !== null
+                (u) =>
+                    u.level1.submissionTime !== "Not Submitted" ||
+                    u.level2.submissionTime !== "Not Submitted"
             );
             if (validUsers.length > 0) {
+                // Choose the highest finalScore within the team.
                 const selectedUser = validUsers.sort(
                     (a, b) => b.finalScore - a.finalScore
                 )[0];
@@ -499,8 +501,13 @@ app.get("/api/leaderboard/level2", async (req, res) => {
             }
         });
 
-        // Sort the final leaderboard by final score in descending order.
-        finalLeaderboard.sort((a, b) => b.finalScore - a.finalScore);
+        // Sort the final leaderboard:
+        // Teams with both submissions always come first, then sort by finalScore in descending order.
+        finalLeaderboard.sort((a, b) => {
+            if (a.bothSubmitted && !b.bothSubmitted) return -1;
+            if (!a.bothSubmitted && b.bothSubmitted) return 1;
+            return b.finalScore - a.finalScore;
+        });
 
         res.status(200).json({ leaderboard: finalLeaderboard });
     } catch (error) {
